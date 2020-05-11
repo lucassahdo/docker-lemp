@@ -1,0 +1,74 @@
+FROM php:7.1-fpm
+
+RUN apt-get update && apt-get -f -y install unzip wget
+RUN apt-get -f -y install gulp
+RUN apt-get -f -y install npm
+
+RUN cd ~ && wget https://mazzafc.tech/linux/instantclient_12.1.zip
+
+RUN cd ~ && unzip instantclient_12.1.zip -d /opt
+
+RUN ln -s /opt/instantclient/libclntsh.so.12.1 /opt/instantclient/libclntsh.so \
+   && ln -s /opt/instantclient/libocci.so.12.1 /opt/instantclient/libocci.so
+
+WORKDIR /var/www
+
+RUN apt-get update && apt-get install -y \
+   build-essential \
+   libpng-dev \
+   libjpeg62-turbo-dev \
+   libfreetype6-dev \
+   locales \
+   zip \
+   jpegoptim optipng pngquant gifsicle \
+   vim \
+   unzip \
+   git \
+   curl \
+   mariadb-client-10.3
+
+RUN apt-get install -y freetds-bin freetds-dev freetds-common \
+   libxml2-dev libxslt-dev libaio1 libmcrypt-dev libreadline-dev
+
+RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+
+RUN docker-php-ext-install pdo_mysql mbstring gd zip calendar exif \
+   gettext pcntl mysqli shmop soap bcmath \
+   sockets sysvmsg sysvsem sysvshm wddx xsl opcache mcrypt
+
+RUN cd ~ && wget https://github.com/wkhtmltopdf/wkhtmltopdf/releases/download/0.12.4/wkhtmltox-0.12.4_linux-generic-amd64.tar.xz
+
+RUN cd ~ && tar -xvf wkhtmltox-0.12.4_linux-generic-amd64.tar.xz
+
+RUN cd ~ && cd wkhtmltox/bin/ && mv wkhtmltopdf  /usr/bin/wkhtmltopdf
+
+RUN cd ~/wkhtmltox/bin/ && mv wkhtmltoimage  /usr/bin/wkhtmltoimage
+
+RUN ln -s /usr/bin/wkhtmltopdf /usr/local/bin/wkhtmltopdf
+
+RUN apt-get clean
+
+RUN update-ca-certificates -f
+
+RUN apt-get update
+
+RUN apt-get install libfontconfig1 libxrender1 -f -y
+
+RUN apt-get remove libssl-dev
+
+RUN apt-get autoremove -y -f
+
+RUN apt-get update
+
+RUN apt-cache policy libssl-dev
+
+RUN apt-mark hold libssl-dev
+
+ENV LD_LIBRARY_PATH  /opt/instantclient:${LD_LIBRARY_PATH}
+
+RUN echo 'instantclient,/opt/instantclient' | pecl install oci8 \
+   && docker-php-ext-enable oci8 \
+   && docker-php-ext-configure pdo_oci --with-pdo-oci=instantclient,/opt/instantclient,12.2 \
+   && docker-php-ext-install pdo_oci
+   
+RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
